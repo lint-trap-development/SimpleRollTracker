@@ -9,9 +9,9 @@
     "DalamudApiLevel": 15,
     "DownloadCount": 0,
     "LastUpdate": 0,
-    "DownloadLinkInstall": "https://github.com/USERNAME/REPO/releases/latest/download/SimpleRollTracker.zip",
-    "DownloadLinkUpdate": "https://github.com/USERNAME/REPO/releases/latest/download/SimpleRollTracker.zip",
-    "DownloadLinkTesting": "https://github.com/USERNAME/REPO/releases/latest/download/SimpleRollTracker.zip",
+    "DownloadLinkInstall": "https://github.com/lint-trap-development/SimpleRollTracker/releases/download/v1.0.0.0/SimpleRollTracker.zip",
+    "DownloadLinkUpdate": "https://github.com/lint-trap-development/SimpleRollTracker/releases/download/v1.0.0.0/SimpleRollTracker.zip",
+    "DownloadLinkTesting": "https://github.com/lint-trap-development/SimpleRollTracker/releases/download/v1.0.0.0/SimpleRollTracker.zip",
     "Punchline": "Track /random rolls simply and efficiently.",
     "Tags": ["roll", "random", "tracker", "utility"]
   }
