@@ -1,0 +1,11 @@
+{
+  "Name": "SimpleRollTracker",
+  "InternalName": "SimpleRollTracker",
+  "AssemblyVersion": "1.0.0.0",
+  "RepoUrl": "",
+  "ApplicableVersion": "any",
+  "Author": "Buddy",
+  "Description": "A simple /random roll tracker.",
+  "Punchline": "Track /random rolls simply and efficiently.",
+  "Tags": ["roll", "random", "tracker", "utility"]
+}
