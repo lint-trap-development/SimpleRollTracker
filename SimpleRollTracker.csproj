@@ -2,6 +2,7 @@
     <PropertyGroup>
         <Version>1.0.0.2</Version>
         <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     </PropertyGroup>
 </Project>
