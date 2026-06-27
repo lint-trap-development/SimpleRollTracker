@@ -28,7 +28,7 @@ public class MainWindow : Window, IDisposable {
     }
 
     public override void Draw() {
-        float footerHeight = 65f; // Enough height for the clipboard builder row
+        float footerHeight = 45f; // Enough height for the clipboard builder row without dead space
         
         if (ImGui.BeginChild("ScrollingRegion", new System.Numerics.Vector2(0, -footerHeight), false)) {
             if (ImGui.BeginTabBar("MainTabs")) {
@@ -161,6 +161,7 @@ public class MainWindow : Window, IDisposable {
                     ImGui.TableNextColumn();
                     if (ImGui.Selectable(topHalf[i].PlayerName + "##top" + i, false)) {
                         selectedTopName = topHalf[i].PlayerName;
+                        ImGui.SetClipboardText(topHalf[i].PlayerName);
                     }
                     ImGui.TableNextColumn();
                     ImGui.Text(topHalf[i].Roll.ToString());
@@ -188,6 +189,7 @@ public class MainWindow : Window, IDisposable {
                     ImGui.TableNextColumn();
                     if (ImGui.Selectable(bottomHalf[i].PlayerName + "##bot" + i, false)) {
                         selectedBottomName = bottomHalf[i].PlayerName;
+                        ImGui.SetClipboardText(bottomHalf[i].PlayerName);
                     }
                     ImGui.TableNextColumn();
                     ImGui.Text(bottomHalf[i].Roll.ToString());
