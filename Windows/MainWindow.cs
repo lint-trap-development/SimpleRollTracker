@@ -13,8 +13,6 @@ public class MainWindow : Window, IDisposable {
     private string currentLabel = string.Empty;
     private GameResult? editingGame = null;
     private string editingLabel = string.Empty;
-    private string selectedTopName = string.Empty;
-    private string selectedBottomName = string.Empty;
     private string middleText = string.Empty;
 
     // Raffle state
@@ -27,34 +25,35 @@ public class MainWindow : Window, IDisposable {
     }
 
     public override void Draw() {
-        float footerHeight = 45f;
-        
-        if (ImGui.BeginChild("ScrollingRegion", new System.Numerics.Vector2(0, -footerHeight), false)) {
-            if (ImGui.BeginTabBar("MainTabs")) {
-                if (ImGui.BeginTabItem("Truth or Dare")) {
-                    DrawTruthOrDareTab();
-                    ImGui.EndTabItem();
-                }
-                if (ImGui.BeginTabItem("Raffle")) {
-                    DrawRaffleTab();
-                    ImGui.EndTabItem();
-                }
-                if (ImGui.BeginTabItem("History")) {
-                    DrawHistoryTab();
-                    ImGui.EndTabItem();
-                }
-                ImGui.EndTabBar();
+        if (ImGui.BeginTabBar("MainTabs")) {
+            if (ImGui.BeginTabItem("High vs Low")) {
+                DrawHighVsLowTab();
+                ImGui.EndTabItem();
             }
-            ImGui.EndChild();
+            if (ImGui.BeginTabItem("Raffle")) {
+                DrawRaffleTab();
+                ImGui.EndTabItem();
+            }
+            if (ImGui.BeginTabItem("History")) {
+                DrawHistoryTab();
+                ImGui.EndTabItem();
+            }
+            ImGui.EndTabBar();
         }
-        
+    }
+
+    private void DrawClipboardBuilder(System.Collections.Generic.List<PlayerRoll> rolls) {
+        if (rolls == null || rolls.Count == 0) return;
+
         ImGui.Separator();
         ImGui.Text("Clipboard Builder:");
-        ImGui.SameLine();
-        ImGui.TextDisabled("(Click a name in each table to copy below)");
         
+        var sorted = rolls.OrderByDescending(r => r.Roll).ToList();
+        string topName = sorted.First().PlayerName;
+        string bottomName = sorted.Last().PlayerName;
+
         ImGui.SetNextItemWidth(120);
-        ImGui.InputTextWithHint("##topName", "High Roller Name", ref selectedTopName, 100, ImGuiInputTextFlags.ReadOnly);
+        ImGui.InputTextWithHint("##topName", "High Roller Name", ref topName, 100, ImGuiInputTextFlags.ReadOnly);
         
         ImGui.SameLine();
         ImGui.SetNextItemWidth(120);
@@ -62,14 +61,15 @@ public class MainWindow : Window, IDisposable {
         
         ImGui.SameLine();
         ImGui.SetNextItemWidth(120);
-        ImGui.InputTextWithHint("##botName", "Low Roller Name", ref selectedBottomName, 100, ImGuiInputTextFlags.ReadOnly);
+        ImGui.InputTextWithHint("##botName", "Low Roller Name", ref bottomName, 100, ImGuiInputTextFlags.ReadOnly);
         
         ImGui.SameLine();
         if (ImGui.Button("Copy to Clipboard")) {
-            string result = $"{selectedTopName} {middleText} {selectedBottomName}".Trim();
+            string result = $"{topName} {middleText} {bottomName}".Trim();
             result = System.Text.RegularExpressions.Regex.Replace(result, @"\s+", " ");
             ImGui.SetClipboardText(result);
         }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Combines the names and action into a single sentence and copies it to your clipboard.");
     }
 
     private void DrawSharedControls(GameMode mode) {
@@ -92,6 +92,7 @@ public class MainWindow : Window, IDisposable {
             config.RandomOnly = randomOnly;
             config.Save();
         }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("If checked, only pure '/random' (out of 999) rolls will be recorded.");
 
         ImGui.SameLine();
         bool oneRoll = config.OneRollOnly;
@@ -99,39 +100,48 @@ public class MainWindow : Window, IDisposable {
             config.OneRollOnly = oneRoll;
             config.Save();
         }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("If checked, ignores any subsequent rolls from the same player during a single session.");
 
         if (gameManager.IsActive) ImGui.EndDisabled();
         
         ImGui.SameLine();
         ImGui.SetNextItemWidth(200);
         ImGui.InputTextWithHint("##SessionLabel", "Session Label (Optional)", ref currentLabel, 100);
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("A custom name for this session to easily identify it in the History tab.");
     }
 
-    private void DrawTruthOrDareTab() {
-        DrawSharedControls(GameMode.TruthOrDare);
+    private void DrawHighVsLowTab() {
+        DrawSharedControls(GameMode.HighVsLow);
         ImGui.Separator();
+
+        System.Collections.Generic.List<PlayerRoll> rollsToDisplay = null;
 
         if (!gameManager.IsActive) {
             ImGui.Text("Most Recent Results:");
-            var lastGame = config.HistoricGames.LastOrDefault(g => g.Mode == GameMode.TruthOrDare);
+            var lastGame = config.HistoricGames.LastOrDefault(g => g.Mode == GameMode.HighVsLow);
             if (lastGame != null) {
-                DrawRollsTable(lastGame.Rolls);
+                rollsToDisplay = lastGame.Rolls;
             } else {
                 ImGui.Text("No results yet.");
             }
         } else {
-            if (gameManager.CurrentMode != GameMode.TruthOrDare) {
+            if (gameManager.CurrentMode != GameMode.HighVsLow) {
                 ImGui.TextColored(new System.Numerics.Vector4(1, 0, 0, 1), $"Currently recording a {gameManager.CurrentMode} session.");
                 return;
             }
             var elapsed = DateTime.Now - (gameManager.StartTime ?? DateTime.Now);
             ImGui.TextColored(new System.Numerics.Vector4(1, 1, 0, 1), $"Recording rolls... [{elapsed:mm\\:ss}]");
-            DrawRollsTable(gameManager.CurrentRolls.ToList());
+            rollsToDisplay = gameManager.CurrentRolls.ToList();
+        }
+
+        if (rollsToDisplay != null) {
+            DrawRollsTable(rollsToDisplay);
+            DrawClipboardBuilder(rollsToDisplay);
         }
     }
 
     private void DrawRaffleTab() {
-        if (gameManager.IsActive && gameManager.CurrentMode != GameMode.TruthOrDare) {
+        if (gameManager.IsActive && gameManager.CurrentMode != GameMode.HighVsLow) {
             selectedRaffleMode = gameManager.CurrentMode; // lock visual mode to active mode
         }
         
@@ -141,7 +151,7 @@ public class MainWindow : Window, IDisposable {
         ImGui.SetNextItemWidth(150);
         if (ImGui.BeginCombo("Raffle Mode", selectedRaffleMode.ToString())) {
             foreach (GameMode mode in Enum.GetValues(typeof(GameMode))) {
-                if (mode == GameMode.TruthOrDare) continue;
+                if (mode == GameMode.HighVsLow) continue;
                 if (ImGui.Selectable(mode.ToString(), mode == selectedRaffleMode)) {
                     selectedRaffleMode = mode;
                 }
@@ -149,6 +159,7 @@ public class MainWindow : Window, IDisposable {
             ImGui.EndCombo();
         }
         if (gameManager.IsActive) ImGui.EndDisabled();
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("Select the winning condition:\nRaffleHigh: Highest roll wins.\nRaffleLow: Lowest roll wins.\nRaffleClosest: The roll closest to the Target Roll wins.");
         
         if (selectedRaffleMode == GameMode.RaffleClosest) {
             ImGui.SameLine();
@@ -164,15 +175,15 @@ public class MainWindow : Window, IDisposable {
 
         if (!gameManager.IsActive) {
             ImGui.Text("Most Recent Results:");
-            var lastGame = config.HistoricGames.LastOrDefault(g => g.Mode != GameMode.TruthOrDare);
+            var lastGame = config.HistoricGames.LastOrDefault(g => g.Mode != GameMode.HighVsLow);
             if (lastGame != null) {
                 DrawRaffleTable(lastGame.Rolls, lastGame.Mode, lastGame.TargetRoll);
             } else {
                 ImGui.Text("No results yet.");
             }
         } else {
-            if (gameManager.CurrentMode == GameMode.TruthOrDare) {
-                ImGui.TextColored(new System.Numerics.Vector4(1, 0, 0, 1), "Currently recording a Truth Or Dare session.");
+            if (gameManager.CurrentMode == GameMode.HighVsLow) {
+                ImGui.TextColored(new System.Numerics.Vector4(1, 0, 0, 1), "Currently recording a High vs Low session.");
                 return;
             }
             var elapsed = DateTime.Now - (gameManager.StartTime ?? DateTime.Now);
@@ -210,8 +221,10 @@ public class MainWindow : Window, IDisposable {
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
                 if (ImGui.Selectable(sorted[i].PlayerName + "##raff" + i, false)) {
-                    selectedTopName = sorted[i].PlayerName;
                     ImGui.SetClipboardText(sorted[i].PlayerName);
+                }
+                if (ImGui.IsItemHovered()) {
+                    ImGui.SetTooltip("Click to copy name to clipboard");
                 }
                 ImGui.TableNextColumn();
                 if (mode == GameMode.RaffleClosest && i == 0) {
@@ -256,8 +269,10 @@ public class MainWindow : Window, IDisposable {
                     ImGui.TableNextRow();
                     ImGui.TableNextColumn();
                     if (ImGui.Selectable(topHalf[i].PlayerName + "##top" + i, false)) {
-                        selectedTopName = topHalf[i].PlayerName;
                         ImGui.SetClipboardText(topHalf[i].PlayerName);
+                    }
+                    if (ImGui.IsItemHovered()) {
+                        ImGui.SetTooltip("Click to copy name to clipboard");
                     }
                     ImGui.TableNextColumn();
                     ImGui.Text(topHalf[i].Roll.ToString());
@@ -282,8 +297,10 @@ public class MainWindow : Window, IDisposable {
                     ImGui.TableNextRow();
                     ImGui.TableNextColumn();
                     if (ImGui.Selectable(bottomHalf[i].PlayerName + "##bot" + i, false)) {
-                        selectedBottomName = bottomHalf[i].PlayerName;
                         ImGui.SetClipboardText(bottomHalf[i].PlayerName);
+                    }
+                    if (ImGui.IsItemHovered()) {
+                        ImGui.SetTooltip("Click to copy name to clipboard");
                     }
                     ImGui.TableNextColumn();
                     ImGui.Text(bottomHalf[i].Roll.ToString());
@@ -303,7 +320,7 @@ public class MainWindow : Window, IDisposable {
         }
         var games = config.HistoricGames.OrderByDescending(g => g.Timestamp).ToList();
         foreach (var game in games) {
-            string modeStr = game.Mode == GameMode.TruthOrDare ? "TorD" : game.Mode.ToString().Replace("Raffle", "Raffle: ");
+            string modeStr = game.Mode == GameMode.HighVsLow ? "HighVsLow" : game.Mode.ToString().Replace("Raffle", "Raffle: ");
             string header = $"{game.Timestamp} [{modeStr}]";
             if (editingGame != game && !string.IsNullOrWhiteSpace(game.Label)) {
                 header += $" - {game.Label}";
@@ -356,8 +373,9 @@ public class MainWindow : Window, IDisposable {
             }
 
             if (isOpen) {
-                if (game.Mode == GameMode.TruthOrDare) {
+                if (game.Mode == GameMode.HighVsLow) {
                     DrawRollsTable(game.Rolls);
+                    DrawClipboardBuilder(game.Rolls);
                 } else {
                     DrawRaffleTable(game.Rolls, game.Mode, game.TargetRoll);
                 }

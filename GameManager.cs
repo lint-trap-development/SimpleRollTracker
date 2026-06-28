@@ -14,7 +14,7 @@ public class GameManager : IDisposable {
     private readonly Configuration config;
     public bool IsActive { get; private set; }
     public DateTime? StartTime { get; private set; }
-    public GameMode CurrentMode { get; private set; } = GameMode.TruthOrDare;
+    public GameMode CurrentMode { get; private set; } = GameMode.HighVsLow;
     public int TargetRoll { get; set; } = 0;
     public List<PlayerRoll> CurrentRolls { get; private set; } = new();
     private readonly Regex rollRegex = new Regex(@"Random! (.*?) roll(?:s)? a (\d+)", RegexOptions.Compiled);
@@ -29,7 +29,7 @@ public class GameManager : IDisposable {
         }
     }
 
-    public void StartRecording(GameMode mode = GameMode.TruthOrDare) {
+    public void StartRecording(GameMode mode = GameMode.HighVsLow) {
         // Wipes the slate clean, sets the timer, and hooks into the game's live chat feed.
         CurrentRolls.Clear();
         CurrentMode = mode;
