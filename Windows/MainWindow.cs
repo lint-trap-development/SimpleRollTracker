@@ -14,6 +14,7 @@ public class MainWindow : Window, IDisposable {
     private GameResult? editingGame = null;
     private string editingLabel = string.Empty;
     private string middleText = string.Empty;
+    private bool confirmClearAll = false;
 
     // Raffle state
     private GameMode selectedRaffleMode = GameMode.RaffleHigh;
@@ -72,6 +73,16 @@ public class MainWindow : Window, IDisposable {
         if (ImGui.IsItemHovered()) ImGui.SetTooltip("Combines the names and action into a single sentence and copies it to your clipboard.");
     }
 
+    private void ExportToCsv(System.Collections.Generic.List<PlayerRoll> rolls) {
+        if (rolls == null || rolls.Count == 0) return;
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine("PlayerName,Roll,OutOf");
+        foreach (var roll in rolls.OrderByDescending(r => r.Roll)) {
+            csv.AppendLine($"\"{roll.PlayerName}\",{roll.Roll},{roll.OutOf}");
+        }
+        ImGui.SetClipboardText(csv.ToString());
+    }
+
     private void DrawSharedControls(GameMode mode) {
         if (!gameManager.IsActive) {
             if (ImGui.Button("Start Recording")) {
@@ -118,6 +129,8 @@ public class MainWindow : Window, IDisposable {
 
         if (!gameManager.IsActive) {
             ImGui.Text("Most Recent Results:");
+            ImGui.SameLine();
+            ImGui.TextColored(new System.Numerics.Vector4(0.6f, 0.6f, 0.6f, 1.0f), "(Click a name to copy it to clipboard)");
             var lastGame = config.HistoricGames.LastOrDefault(g => g.Mode == GameMode.HighVsLow);
             if (lastGame != null) {
                 rollsToDisplay = lastGame.Rolls;
@@ -130,11 +143,17 @@ public class MainWindow : Window, IDisposable {
                 return;
             }
             var elapsed = DateTime.Now - (gameManager.StartTime ?? DateTime.Now);
-            ImGui.TextColored(new System.Numerics.Vector4(1, 1, 0, 1), $"Recording rolls... [{elapsed:mm\\:ss}]");
+            ImGui.TextColored(new System.Numerics.Vector4(1, 1, 0, 1), $"Recording rolls... [{elapsed:mm\\:ss}] (Total Rolls: {gameManager.CurrentRolls.Count})");
             rollsToDisplay = gameManager.CurrentRolls.ToList();
         }
 
         if (rollsToDisplay != null) {
+            if (rollsToDisplay.Count > 0) {
+                if (ImGui.Button("Export Session to CSV")) {
+                    ExportToCsv(rollsToDisplay);
+                }
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Copy all rolls to clipboard in CSV format.");
+            }
             DrawRollsTable(rollsToDisplay);
             DrawClipboardBuilder(rollsToDisplay);
         }
@@ -168,15 +187,23 @@ public class MainWindow : Window, IDisposable {
             ImGui.BeginDisabled();
             ImGui.InputInt("Target Roll", ref tr, 0, 0);
             ImGui.EndDisabled();
-            if (ImGui.IsItemHovered()) ImGui.SetTooltip("The target roll is automatically set to your first roll after starting the session.");
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("To set the Target Roll, you (the host) must type /random while the session is Started. Your first roll will be captured here.");
         }
 
         ImGui.Separator();
 
         if (!gameManager.IsActive) {
             ImGui.Text("Most Recent Results:");
+            ImGui.SameLine();
+            ImGui.TextColored(new System.Numerics.Vector4(0.6f, 0.6f, 0.6f, 1.0f), "(Click a name to copy it to clipboard)");
             var lastGame = config.HistoricGames.LastOrDefault(g => g.Mode != GameMode.HighVsLow);
             if (lastGame != null) {
+                if (lastGame.Rolls.Count > 0) {
+                    if (ImGui.Button("Export Session to CSV")) {
+                        ExportToCsv(lastGame.Rolls);
+                    }
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Copy all rolls to clipboard in CSV format.");
+                }
                 DrawRaffleTable(lastGame.Rolls, lastGame.Mode, lastGame.TargetRoll);
             } else {
                 ImGui.Text("No results yet.");
@@ -187,8 +214,15 @@ public class MainWindow : Window, IDisposable {
                 return;
             }
             var elapsed = DateTime.Now - (gameManager.StartTime ?? DateTime.Now);
-            ImGui.TextColored(new System.Numerics.Vector4(1, 1, 0, 1), $"Recording rolls... [{elapsed:mm\\:ss}]");
-            DrawRaffleTable(gameManager.CurrentRolls.ToList(), gameManager.CurrentMode, gameManager.TargetRoll);
+            ImGui.TextColored(new System.Numerics.Vector4(1, 1, 0, 1), $"Recording rolls... [{elapsed:mm\\:ss}] (Total Rolls: {gameManager.CurrentRolls.Count})");
+            var rollsToDisplay = gameManager.CurrentRolls.ToList();
+            if (rollsToDisplay.Count > 0) {
+                if (ImGui.Button("Export Session to CSV")) {
+                    ExportToCsv(rollsToDisplay);
+                }
+                if (ImGui.IsItemHovered()) ImGui.SetTooltip("Copy all rolls to clipboard in CSV format.");
+            }
+            DrawRaffleTable(rollsToDisplay, gameManager.CurrentMode, gameManager.TargetRoll);
         }
     }
 
@@ -222,9 +256,6 @@ public class MainWindow : Window, IDisposable {
                 ImGui.TableNextColumn();
                 if (ImGui.Selectable(sorted[i].PlayerName + "##raff" + i, false)) {
                     ImGui.SetClipboardText(sorted[i].PlayerName);
-                }
-                if (ImGui.IsItemHovered()) {
-                    ImGui.SetTooltip("Click to copy name to clipboard");
                 }
                 ImGui.TableNextColumn();
                 if (mode == GameMode.RaffleClosest && i == 0) {
@@ -271,9 +302,6 @@ public class MainWindow : Window, IDisposable {
                     if (ImGui.Selectable(topHalf[i].PlayerName + "##top" + i, false)) {
                         ImGui.SetClipboardText(topHalf[i].PlayerName);
                     }
-                    if (ImGui.IsItemHovered()) {
-                        ImGui.SetTooltip("Click to copy name to clipboard");
-                    }
                     ImGui.TableNextColumn();
                     ImGui.Text(topHalf[i].Roll.ToString());
                     ImGui.TableNextColumn();
@@ -299,9 +327,6 @@ public class MainWindow : Window, IDisposable {
                     if (ImGui.Selectable(bottomHalf[i].PlayerName + "##bot" + i, false)) {
                         ImGui.SetClipboardText(bottomHalf[i].PlayerName);
                     }
-                    if (ImGui.IsItemHovered()) {
-                        ImGui.SetTooltip("Click to copy name to clipboard");
-                    }
                     ImGui.TableNextColumn();
                     ImGui.Text(bottomHalf[i].Roll.ToString());
                     ImGui.TableNextColumn();
@@ -318,10 +343,37 @@ public class MainWindow : Window, IDisposable {
             ImGui.Text("No history recorded.");
             return;
         }
+
+        if (ImGui.Button("Clear All History")) {
+            confirmClearAll = true;
+        }
+        
+        if (confirmClearAll) {
+            ImGui.OpenPopup("Confirm Clear All");
+        }
+
+        if (ImGui.BeginPopupModal("Confirm Clear All", ref confirmClearAll, ImGuiWindowFlags.AlwaysAutoResize)) {
+            ImGui.Text("Are you sure you want to delete all history?\nThis action cannot be undone.");
+            if (ImGui.Button("Yes, Clear All")) {
+                config.HistoricGames.Clear();
+                config.Save();
+                confirmClearAll = false;
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("Cancel")) {
+                confirmClearAll = false;
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.EndPopup();
+        }
+
+        if (config.HistoricGames.Count == 0) return;
+
         var games = config.HistoricGames.OrderByDescending(g => g.Timestamp).ToList();
         foreach (var game in games) {
             string modeStr = game.Mode == GameMode.HighVsLow ? "HighVsLow" : game.Mode.ToString().Replace("Raffle", "Raffle: ");
-            string header = $"{game.Timestamp} [{modeStr}]";
+            string header = $"{game.Timestamp} [{modeStr}] (Total Rolls: {game.Rolls.Count})";
             if (editingGame != game && !string.IsNullOrWhiteSpace(game.Label)) {
                 header += $" - {game.Label}";
             }
@@ -373,6 +425,13 @@ public class MainWindow : Window, IDisposable {
             }
 
             if (isOpen) {
+                if (game.Rolls.Count > 0) {
+                    if (ImGui.Button("Export Session to CSV##" + game.Timestamp.Ticks)) {
+                        ExportToCsv(game.Rolls);
+                    }
+                    if (ImGui.IsItemHovered()) ImGui.SetTooltip("Copy all rolls to clipboard in CSV format.");
+                }
+
                 if (game.Mode == GameMode.HighVsLow) {
                     DrawRollsTable(game.Rolls);
                     DrawClipboardBuilder(game.Rolls);
