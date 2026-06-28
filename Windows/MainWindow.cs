@@ -7,10 +7,6 @@ using Dalamud.Interface.Windowing;
 
 namespace SimpleRollTracker.Windows;
 
-/// <summary>
-/// The main user interface for the SimpleRollTracker.
-/// Displays controls for recording sessions and history of past games.
-/// </summary>
 public class MainWindow : Window, IDisposable {
     private readonly GameManager gameManager;
     private readonly Configuration config;
@@ -21,6 +17,9 @@ public class MainWindow : Window, IDisposable {
     private string selectedBottomName = string.Empty;
     private string middleText = string.Empty;
 
+    // Raffle state
+    private GameMode selectedRaffleMode = GameMode.RaffleHigh;
+
     public MainWindow(GameManager gameManager, Configuration config) : base("SimpleRollTracker") {
         this.gameManager = gameManager;
         this.config = config;
@@ -28,12 +27,16 @@ public class MainWindow : Window, IDisposable {
     }
 
     public override void Draw() {
-        float footerHeight = 45f; // Enough height for the clipboard builder row without dead space
+        float footerHeight = 45f;
         
         if (ImGui.BeginChild("ScrollingRegion", new System.Numerics.Vector2(0, -footerHeight), false)) {
             if (ImGui.BeginTabBar("MainTabs")) {
-                if (ImGui.BeginTabItem("Controls")) {
-                    DrawControlsTab();
+                if (ImGui.BeginTabItem("Truth or Dare")) {
+                    DrawTruthOrDareTab();
+                    ImGui.EndTabItem();
+                }
+                if (ImGui.BeginTabItem("Raffle")) {
+                    DrawRaffleTab();
                     ImGui.EndTabItem();
                 }
                 if (ImGui.BeginTabItem("History")) {
@@ -69,24 +72,21 @@ public class MainWindow : Window, IDisposable {
         }
     }
 
-    private void DrawControlsTab() {
-        // 1. Start/Stop Button
+    private void DrawSharedControls(GameMode mode) {
         if (!gameManager.IsActive) {
             if (ImGui.Button("Start Recording")) {
-                gameManager.StartRecording();
+                gameManager.StartRecording(mode);
             }
         } else {
             if (ImGui.Button("Stop Recording")) {
                 gameManager.StopRecording(currentLabel);
-                currentLabel = string.Empty; // Reset for next time
+                currentLabel = string.Empty;
             }
         }
 
         ImGui.SameLine();
-
         if (gameManager.IsActive) ImGui.BeginDisabled();
-
-        // 2. "/random" only Checkbox
+        
         bool randomOnly = config.RandomOnly;
         if (ImGui.Checkbox("\"/random\" only", ref randomOnly)) {
             config.RandomOnly = randomOnly;
@@ -94,8 +94,6 @@ public class MainWindow : Window, IDisposable {
         }
 
         ImGui.SameLine();
-
-        // 3. One roll only Checkbox
         bool oneRoll = config.OneRollOnly;
         if (ImGui.Checkbox("One roll only", ref oneRoll)) {
             config.OneRollOnly = oneRoll;
@@ -105,26 +103,126 @@ public class MainWindow : Window, IDisposable {
         if (gameManager.IsActive) ImGui.EndDisabled();
         
         ImGui.SameLine();
-
-        // 4. Session Label (with hidden label and placeholder text)
         ImGui.SetNextItemWidth(200);
         ImGui.InputTextWithHint("##SessionLabel", "Session Label (Optional)", ref currentLabel, 100);
+    }
 
+    private void DrawTruthOrDareTab() {
+        DrawSharedControls(GameMode.TruthOrDare);
         ImGui.Separator();
 
         if (!gameManager.IsActive) {
             ImGui.Text("Most Recent Results:");
-            var lastGame = config.HistoricGames.LastOrDefault();
+            var lastGame = config.HistoricGames.LastOrDefault(g => g.Mode == GameMode.TruthOrDare);
             if (lastGame != null) {
                 DrawRollsTable(lastGame.Rolls);
             } else {
                 ImGui.Text("No results yet.");
             }
         } else {
-            var elapsed = DateTime.Now - gameManager.StartTime.Value;
+            if (gameManager.CurrentMode != GameMode.TruthOrDare) {
+                ImGui.TextColored(new System.Numerics.Vector4(1, 0, 0, 1), $"Currently recording a {gameManager.CurrentMode} session.");
+                return;
+            }
+            var elapsed = DateTime.Now - (gameManager.StartTime ?? DateTime.Now);
             ImGui.TextColored(new System.Numerics.Vector4(1, 1, 0, 1), $"Recording rolls... [{elapsed:mm\\:ss}]");
-            var rollsList = gameManager.CurrentRolls.ToList();
-            DrawRollsTable(rollsList);
+            DrawRollsTable(gameManager.CurrentRolls.ToList());
+        }
+    }
+
+    private void DrawRaffleTab() {
+        if (gameManager.IsActive && gameManager.CurrentMode != GameMode.TruthOrDare) {
+            selectedRaffleMode = gameManager.CurrentMode; // lock visual mode to active mode
+        }
+        
+        DrawSharedControls(selectedRaffleMode);
+        
+        if (gameManager.IsActive) ImGui.BeginDisabled();
+        ImGui.SetNextItemWidth(150);
+        if (ImGui.BeginCombo("Raffle Mode", selectedRaffleMode.ToString())) {
+            foreach (GameMode mode in Enum.GetValues(typeof(GameMode))) {
+                if (mode == GameMode.TruthOrDare) continue;
+                if (ImGui.Selectable(mode.ToString(), mode == selectedRaffleMode)) {
+                    selectedRaffleMode = mode;
+                }
+            }
+            ImGui.EndCombo();
+        }
+        if (gameManager.IsActive) ImGui.EndDisabled();
+        
+        if (selectedRaffleMode == GameMode.RaffleClosest) {
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(100);
+            int tr = gameManager.TargetRoll;
+            ImGui.BeginDisabled();
+            ImGui.InputInt("Target Roll", ref tr, 0, 0);
+            ImGui.EndDisabled();
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("The target roll is automatically set to your first roll after starting the session.");
+        }
+
+        ImGui.Separator();
+
+        if (!gameManager.IsActive) {
+            ImGui.Text("Most Recent Results:");
+            var lastGame = config.HistoricGames.LastOrDefault(g => g.Mode != GameMode.TruthOrDare);
+            if (lastGame != null) {
+                DrawRaffleTable(lastGame.Rolls, lastGame.Mode, lastGame.TargetRoll);
+            } else {
+                ImGui.Text("No results yet.");
+            }
+        } else {
+            if (gameManager.CurrentMode == GameMode.TruthOrDare) {
+                ImGui.TextColored(new System.Numerics.Vector4(1, 0, 0, 1), "Currently recording a Truth Or Dare session.");
+                return;
+            }
+            var elapsed = DateTime.Now - (gameManager.StartTime ?? DateTime.Now);
+            ImGui.TextColored(new System.Numerics.Vector4(1, 1, 0, 1), $"Recording rolls... [{elapsed:mm\\:ss}]");
+            DrawRaffleTable(gameManager.CurrentRolls.ToList(), gameManager.CurrentMode, gameManager.TargetRoll);
+        }
+    }
+
+    private void DrawRaffleTable(System.Collections.Generic.List<PlayerRoll> rolls, GameMode mode, int target) {
+        if (rolls.Count == 0) {
+            ImGui.Text("No rolls collected.");
+            return;
+        }
+
+        System.Collections.Generic.List<PlayerRoll> sorted;
+        if (mode == GameMode.RaffleHigh) {
+            sorted = rolls.OrderByDescending(r => r.Roll).ToList();
+        } else if (mode == GameMode.RaffleLow) {
+            sorted = rolls.OrderBy(r => r.Roll).ToList();
+        } else {
+            // Closest To
+            sorted = rolls.OrderBy(r => Math.Abs(r.Roll - target)).ToList();
+        }
+
+        if (ImGui.BeginTable("RaffleTable", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg)) {
+            ImGui.TableSetupColumn("Name");
+            ImGui.TableSetupColumn("Roll");
+            ImGui.TableSetupColumn("Cmd");
+            ImGui.TableHeadersRow();
+            for (int i = 0; i < sorted.Count; i++) {
+                if (i == 0) {
+                    ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new System.Numerics.Vector4(0.2f, 0.6f, 0.2f, 0.6f)));
+                }
+
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                if (ImGui.Selectable(sorted[i].PlayerName + "##raff" + i, false)) {
+                    selectedTopName = sorted[i].PlayerName;
+                    ImGui.SetClipboardText(sorted[i].PlayerName);
+                }
+                ImGui.TableNextColumn();
+                if (mode == GameMode.RaffleClosest && i == 0) {
+                    ImGui.Text($"{sorted[i].Roll} (Diff: {Math.Abs(sorted[i].Roll - target)})");
+                } else {
+                    ImGui.Text(sorted[i].Roll.ToString());
+                }
+                ImGui.TableNextColumn();
+                ImGui.Text(sorted[i].OutOf == 999 ? "/random" : $"/random {sorted[i].OutOf}");
+            }
+            ImGui.EndTable();
         }
     }
 
@@ -137,13 +235,11 @@ public class MainWindow : Window, IDisposable {
         var sorted = rolls.OrderByDescending(r => r.Roll).ToList();
         int half = (int)Math.Ceiling(sorted.Count / 2.0);
         
-        var topHalf = sorted.Take(half).ToList(); // high to low
-        var bottomHalf = sorted.Skip(half).OrderBy(r => r.Roll).ToList(); // low to high
+        var topHalf = sorted.Take(half).ToList();
+        var bottomHalf = sorted.Skip(half).OrderBy(r => r.Roll).ToList();
 
         if (ImGui.BeginTable("SplitTable", 2, ImGuiTableFlags.BordersInnerV)) {
             ImGui.TableNextRow();
-            
-            // Left Pane: Top Half
             ImGui.TableNextColumn();
             
             var width = ImGui.GetContentRegionAvail().X;
@@ -171,9 +267,7 @@ public class MainWindow : Window, IDisposable {
                 ImGui.EndTable();
             }
 
-            // Right Pane: Bottom Half
             ImGui.TableNextColumn();
-            
             var botWidth = ImGui.GetContentRegionAvail().X;
             var botTextWidth = ImGui.CalcTextSize("Bottom Half (Low to High)").X;
             ImGui.SetCursorPosX(ImGui.GetCursorPosX() + (botWidth - botTextWidth) * 0.5f);
@@ -209,7 +303,8 @@ public class MainWindow : Window, IDisposable {
         }
         var games = config.HistoricGames.OrderByDescending(g => g.Timestamp).ToList();
         foreach (var game in games) {
-            string header = game.Timestamp.ToString();
+            string modeStr = game.Mode == GameMode.TruthOrDare ? "TorD" : game.Mode.ToString().Replace("Raffle", "Raffle: ");
+            string header = $"{game.Timestamp} [{modeStr}]";
             if (editingGame != game && !string.IsNullOrWhiteSpace(game.Label)) {
                 header += $" - {game.Label}";
             }
@@ -218,7 +313,7 @@ public class MainWindow : Window, IDisposable {
             int columns = editingGame == game ? 3 : 2;
             
             if (ImGui.BeginTable("HistoryTable_" + game.Timestamp.Ticks, columns)) {
-                ImGui.TableSetupColumn("Header", editingGame == game ? ImGuiTableColumnFlags.WidthFixed : ImGuiTableColumnFlags.WidthStretch, 200f);
+                ImGui.TableSetupColumn("Header", editingGame == game ? ImGuiTableColumnFlags.WidthFixed : ImGuiTableColumnFlags.WidthStretch, 250f);
                 if (editingGame == game) {
                     ImGui.TableSetupColumn("Input", ImGuiTableColumnFlags.WidthStretch);
                 }
@@ -261,7 +356,11 @@ public class MainWindow : Window, IDisposable {
             }
 
             if (isOpen) {
-                DrawRollsTable(game.Rolls);
+                if (game.Mode == GameMode.TruthOrDare) {
+                    DrawRollsTable(game.Rolls);
+                } else {
+                    DrawRaffleTable(game.Rolls, game.Mode, game.TargetRoll);
+                }
             }
         }
     }

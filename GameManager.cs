@@ -14,6 +14,8 @@ public class GameManager : IDisposable {
     private readonly Configuration config;
     public bool IsActive { get; private set; }
     public DateTime? StartTime { get; private set; }
+    public GameMode CurrentMode { get; private set; } = GameMode.TruthOrDare;
+    public int TargetRoll { get; set; } = 0;
     public List<PlayerRoll> CurrentRolls { get; private set; } = new();
     private readonly Regex rollRegex = new Regex(@"Random! (.*?) roll(?:s)? a (\d+)", RegexOptions.Compiled);
 
@@ -27,8 +29,11 @@ public class GameManager : IDisposable {
         }
     }
 
-    public void StartRecording() {
+    public void StartRecording(GameMode mode = GameMode.TruthOrDare) {
+        // Wipes the slate clean, sets the timer, and hooks into the game's live chat feed.
         CurrentRolls.Clear();
+        CurrentMode = mode;
+        TargetRoll = 0;
         IsActive = true;
         StartTime = DateTime.Now;
         Services.ChatGui.ChatMessage += OnChatMessage;
@@ -39,9 +44,12 @@ public class GameManager : IDisposable {
         IsActive = false;
         Services.ChatGui.ChatMessage -= OnChatMessage;
 
+        // Bundle up the results of the session into a GameResult object.
         var result = new GameResult {
             Timestamp = DateTime.Now,
             Label = label,
+            Mode = CurrentMode,
+            TargetRoll = TargetRoll,
             Rolls = CurrentRolls.ToList()
         };
 
@@ -64,10 +72,16 @@ public class GameManager : IDisposable {
         if (match.Success) {
             string playerName = match.Groups[1].Value.Trim();
             
-            // If the local player rolled, the message says "You". Resolve this to their actual name.
+            // Fix FFXIV's "You" pronoun: If the local player rolls, it says "You roll a...". We resolve "You" to their actual character name.
             if (playerName.Equals("You", StringComparison.OrdinalIgnoreCase)) {
                 if (Services.ObjectTable.LocalPlayer != null) {
                     playerName = Services.ObjectTable.LocalPlayer.Name.TextValue;
+                }
+                
+                int hostRoll = int.Parse(match.Groups[2].Value);
+                if (CurrentMode == GameMode.RaffleClosest && TargetRoll == 0) {
+                    TargetRoll = hostRoll;
+                    Services.PluginLog.Debug($"[RollTracker] Host target roll automatically set to {TargetRoll}");
                 }
             }
 
