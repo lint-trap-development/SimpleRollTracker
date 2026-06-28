@@ -30,14 +30,14 @@ public sealed class Plugin : IDalamudPlugin {
         Services.PluginInterface.UiBuilder.Draw += DrawUI;
         Services.PluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
         Services.PluginInterface.UiBuilder.OpenMainUi += DrawMainUI;
-        Services.CommandManager.AddHandler(CommandName, new CommandInfo(this.OnCommand) { HelpMessage = "Open the SimpleRollTracker window" });
+        Services.CommandManager.AddHandler("/alldice", new CommandInfo(this.OnCommand) { HelpMessage = "Open the 'Why can't I hold all these dice?' window." });
     }
 
     public void Dispose() {
         this.WindowSystem.RemoveAllWindows();
         this.MainWindow.Dispose();
         this.gameManager.Dispose();
-        Services.CommandManager.RemoveHandler(CommandName);
+        Services.CommandManager.RemoveHandler("/alldice");
         Services.PluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;
         Services.PluginInterface.UiBuilder.OpenMainUi -= DrawMainUI;
         Services.PluginInterface.UiBuilder.Draw -= DrawUI;

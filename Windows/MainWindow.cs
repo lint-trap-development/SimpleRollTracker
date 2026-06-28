@@ -19,7 +19,7 @@ public class MainWindow : Window, IDisposable {
     // Raffle state
     private GameMode selectedRaffleMode = GameMode.RaffleHigh;
 
-    public MainWindow(GameManager gameManager, Configuration config) : base("SimpleRollTracker") {
+    public MainWindow(GameManager gameManager, Configuration config) : base("Why can't I hold all these dice?") {
         this.gameManager = gameManager;
         this.config = config;
         this.SizeConstraints = new WindowSizeConstraints { MinimumSize = new System.Numerics.Vector2(300, 400), MaximumSize = new System.Numerics.Vector2(float.MaxValue, float.MaxValue) };

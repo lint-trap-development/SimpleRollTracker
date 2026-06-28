@@ -1,11 +1,12 @@
 {
-  "Name": "SimpleRollTracker",
+  "Name": "Why can't I hold all these dice?",
   "InternalName": "SimpleRollTracker",
-  "AssemblyVersion": "1.0.0.0",
+  "AssemblyVersion": "1.2.2.0",
   "RepoUrl": "",
   "ApplicableVersion": "any",
   "Author": "Buddy",
-  "Description": "A simple /random roll tracker.",
+  "Description": "A tracker and manager for various /random games. Includes High vs Low, raffles, convenient clipboard functions, and more!",
   "Punchline": "Track /random rolls simply and efficiently.",
-  "Tags": ["roll", "random", "tracker", "utility"]
+  "Tags": ["roll", "random", "tracker", "utility"],
+  "DalamudApiLevel": 15
 }
